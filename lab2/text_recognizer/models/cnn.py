@@ -37,11 +37,45 @@ class ConvBlock(nn.Module):
         r = self.relu(c)
         return r
 
+# kernel size 3 + padding of 1 maintains the dimensionality of the input to be eq to output so we can go for skip conns here
+class ResBlock(nn.Module):
+    def __init__(self, input_channels: int, output_channels: int) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(input_channels, output_channels, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(output_channels, output_channels, kernel_size=3, stride=1, padding=1)
+        self.conv_skip = nn.Conv2d(input_channels, output_channels, kernel_size=3, stride=1, padding=1)
+        self.relu1 = nn.ReLU()
+        self.relu2 = nn.ReLU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Parameters
+        ----------
+        x
+            of dimensions (B, C, H, W)
+
+        Returns
+        -------
+        torch.Tensor
+            of dimensions (B, C, H, W)
+        """
+        y = self.conv1(x)
+        y = self.relu1(y)
+        y = self.conv2(y)
+        skip_y = self.conv_skip(x)
+        y = y + skip_y
+        y = self.relu2(y)
+        return y
+
+def _block(t: str, d1: int, d2: int) -> nn.Module:
+    if t == 'cnn':
+        return ConvBlock(d1, d2)
+    return ResBlock(d1, d2)
 
 class CNN(nn.Module):
     """Simple CNN for recognizing characters in a square image."""
 
-    def __init__(self, data_config: Dict[str, Any], args: argparse.Namespace = None) -> None:
+    def __init__(self, data_config: Dict[str, Any], args: argparse.Namespace = None, block_type='cnn') -> None:
         super().__init__()
         self.args = vars(args) if args is not None else {}
 
@@ -51,8 +85,8 @@ class CNN(nn.Module):
         conv_dim = self.args.get("conv_dim", CONV_DIM)
         fc_dim = self.args.get("fc_dim", FC_DIM)
 
-        self.conv1 = ConvBlock(input_dims[0], conv_dim)
-        self.conv2 = ConvBlock(conv_dim, conv_dim)
+        self.conv1 = _block(block_type, input_dims[0], conv_dim)
+        self.conv2 = _block(block_type, conv_dim, conv_dim)
         self.dropout = nn.Dropout(0.25)
         self.max_pool = nn.MaxPool2d(2)
 
