@@ -39,13 +39,18 @@ class ConvBlock(nn.Module):
 
 # kernel size 3 + padding of 1 maintains the dimensionality of the input to be eq to output so we can go for skip conns here
 class ResBlock(nn.Module):
-    def __init__(self, input_channels: int, output_channels: int) -> None:
+    def __init__(self, input_channels: int, output_channels: int, batch_norm=False) -> None:
         super().__init__()
         self.conv1 = nn.Conv2d(input_channels, output_channels, kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.Identity()
         self.conv2 = nn.Conv2d(output_channels, output_channels, kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.Identity()
         self.conv_skip = nn.Conv2d(input_channels, output_channels, kernel_size=3, stride=1, padding=1)
         self.relu1 = nn.ReLU()
         self.relu2 = nn.ReLU()
+        if batch_norm:
+            self.bn1 = nn.BatchNorm2d(output_channels)
+            self.bn2 = nn.BatchNorm2d(output_channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -60,8 +65,10 @@ class ResBlock(nn.Module):
             of dimensions (B, C, H, W)
         """
         y = self.conv1(x)
+        y = self.bn1(y)
         y = self.relu1(y)
         y = self.conv2(y)
+        y = self.bn2(y)
         skip_y = self.conv_skip(x)
         y = y + skip_y
         y = self.relu2(y)
@@ -70,12 +77,18 @@ class ResBlock(nn.Module):
 def _block(t: str, d1: int, d2: int) -> nn.Module:
     if t == 'cnn':
         return ConvBlock(d1, d2)
-    return ResBlock(d1, d2)
+    if t == 'res':
+        return ResBlock(d1, d2)
+    if t == 'res_bn':
+        return ResBlock(d1, d2, batch_norm = True)
+    
+    raise ValueError()
 
 class CNN(nn.Module):
     """Simple CNN for recognizing characters in a square image."""
 
-    def __init__(self, data_config: Dict[str, Any], args: argparse.Namespace = None, block_type='cnn') -> None:
+    def __init__(self, data_config: Dict[str, Any], args: argparse.Namespace = None,
+        block_type = 'cnn', batch_norm = False) -> None:
         super().__init__()
         self.args = vars(args) if args is not None else {}
 
