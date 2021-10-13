@@ -72,6 +72,24 @@ class LineCNN(nn.Module):
         self.WS = self.args.get("window_stride", WINDOW_STRIDE)
         self.limit_output_length = self.args.get("limit_output_length", False)
 
+        """
+        In: torch.Size([128, 1, 28, 896]).  Conv: Conv2d(1, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        In: torch.Size([128, 32, 28, 896]). Conv: Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        In: torch.Size([128, 32, 28, 896]). Conv: Conv2d(32, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        In: torch.Size([128, 32, 14, 448]). Conv: Conv2d(32, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        In: torch.Size([128, 32, 14, 448]). Conv: Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        In: torch.Size([128, 64, 7, 224]).  Conv: Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        In: torch.Size([128, 64, 7, 224]).  Conv: Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+        In: torch.Size([128, 128, 4, 112]). Conv: Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        In: torch.Size([128, 128, 4, 112]). Conv: Conv2d(128, 512, kernel_size=(3, 3), stride=(3, 3))
+        Out: torch.Size([128, 512, 1, 37])
+
+        stride 2 with padding 1 means we're halving the dims every time
+        squeeze following this in the next layer sort of relies on H being 1
+        last block basically plays the same sliding window role the app code did in LineCNNSimple
+        we're adjusting the window size (which is kernel size now) and stride (which is kernel stride) to account for dim halving we've done previously
+        that sort of keeps the receptive field somewhat similar to the manual sliding one
+        """
         # Input is (1, H, W)
         self.convs = nn.Sequential(
             ConvBlock(1, conv_dim),
@@ -128,6 +146,11 @@ class LineCNN(nn.Module):
             C is self.num_classes
         """
         _B, _C, _H, _W = x.shape
+        # for layer in self.convs:
+        #     print(f"In: {x.shape}. Conv: {layer.conv}")
+        #     x = layer(x)
+
+        # print(f"Out: {x.shape}")
         x = self.convs(x)  # (B, FC_DIM, 1, Sx)
         x = x.squeeze(2).permute(0, 2, 1)  # (B, S, FC_DIM)
         x = F.relu(self.fc1(x))  # -> (B, S, FC_DIM)
@@ -136,6 +159,7 @@ class LineCNN(nn.Module):
         x = x.permute(0, 2, 1)  # -> (B, C, S)
         if self.limit_output_length:
             x = x[:, :, : self.output_length]
+        print(f"{x.shape}")
         return x
 
     @staticmethod
