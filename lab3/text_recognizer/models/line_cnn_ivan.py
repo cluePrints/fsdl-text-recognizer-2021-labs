@@ -62,6 +62,8 @@ class LineCNNIvan(nn.Module):
         self.fc2 = nn.Linear(fc_dim, n_classes)
         self.limit_output_length = args.limit_output_length
         self.output_length = seq_len
+        if args.init_weights:
+            self._init_weights()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -88,9 +90,32 @@ class LineCNNIvan(nn.Module):
 
         return x
 
+    def _init_weights(self):
+        import math
+        """
+        Initialize weights in a better way than default.
+        See https://github.com/pytorch/pytorch/issues/18182
+        """
+        for m in self.modules():
+            if type(m) in {
+                nn.Conv2d,
+                nn.Conv3d,
+                nn.ConvTranspose2d,
+                nn.ConvTranspose3d,
+                nn.Linear,
+            }:
+                nn.init.kaiming_normal_(m.weight.data, a=0, mode="fan_out", nonlinearity="relu")
+                if m.bias is not None:
+                    _fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(  # pylint: disable=protected-access
+                        m.weight.data
+                    )
+                    bound = 1 / math.sqrt(fan_out)
+                    nn.init.normal_(m.bias, -bound, bound)
+
     def add_to_argparse(parser: _ArgumentGroup):
         parser.add_argument('--window_width', type=int)
         parser.add_argument('--window_stride', type=int)
         parser.add_argument('--fc_dim', type=int, default=128)
         parser.add_argument('--conv_dim', type=int, default=128)
         parser.add_argument("--limit_output_length", action="store_true", default=False)
+        parser.add_argument("--init_weights", action="store_true", default=False)
