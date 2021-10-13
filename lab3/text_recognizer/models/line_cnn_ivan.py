@@ -10,6 +10,17 @@ import numpy as np
 
 from .cnn import CNN, IMAGE_SIZE
 
+class IvanoConv(nn.Module):
+    def __init__(self, in_dim: int, out_dim: int, kernel_size:int=3, stride:int=1, padding:int=1):
+        super().__init__()
+        self.conv = nn.Conv2d(in_dim, out_dim, kernel_size=kernel_size, stride=stride, padding=padding)
+        self.relu = nn.ReLU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv(x)
+        x = self.relu(x)
+        return x
+
 
 class LineCNNIvan(nn.Module):
     """Process the line through a CNN and process the resulting sequence through LSTM layers."""
@@ -29,13 +40,14 @@ class LineCNNIvan(nn.Module):
         self.window_height = args.window_width
         self.window_stride = args.window_stride
         self.data_config = data_config
-        self.cnn = CNN(data_config=data_config, args=args)
         # striding early (vs in the last layer) allows us to reduce the amount of compute while still passing info down the line
-        self.conv1 = nn.Conv2d(n_colors, conv_dim, kernel_size=3, stride=2, padding=1)
-        self.conv2 = nn.Conv2d(conv_dim, conv_dim, kernel_size=3, stride=2, padding=1)
-        self.conv3 = nn.Conv2d(conv_dim, conv_dim, kernel_size=3, stride=2, padding=1)
-        self.conv4 = nn.Conv2d(conv_dim, fc_dim,
-                                kernel_size=(HEIGHT//8, self.window_width//8), stride=(self.window_height//8, self.window_stride//8), padding=0
+        self.conv1 = IvanoConv(n_colors, conv_dim, stride=2) # rc: 3x3
+        self.conv2 = IvanoConv(conv_dim, conv_dim, stride=2) # rc: 7x7
+        self.conv3 = IvanoConv(conv_dim, conv_dim, stride=2) # rc: 11x11
+        self.conv4 = IvanoConv(conv_dim, fc_dim,
+                                kernel_size=(HEIGHT//8, self.window_width//8),
+                                stride=(self.window_height//8, self.window_stride//8),
+                                padding=0
         )
         # TODO: this sort of gets to 27x27 receptive field on a single output of the feature map
         self.fc1 = nn.Linear(fc_dim, fc_dim)
