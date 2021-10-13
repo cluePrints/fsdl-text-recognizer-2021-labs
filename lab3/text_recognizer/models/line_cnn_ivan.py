@@ -41,14 +41,18 @@ class LineCNNIvan(nn.Module):
         self.window_stride = args.window_stride
         self.data_config = data_config
         # striding early (vs in the last layer) allows us to reduce the amount of compute while still passing info down the line
-        self.conv1 = IvanoConv(n_colors, conv_dim, stride=2) # rc: 3x3
-        self.conv2 = IvanoConv(conv_dim, conv_dim, stride=2) # rc: 7x7
-        self.conv3 = IvanoConv(conv_dim, conv_dim, stride=2) # rc: 11x11
-        self.conv4 = IvanoConv(conv_dim, fc_dim,
-                                kernel_size=(HEIGHT//8, self.window_width//8),
-                                stride=(self.window_height//8, self.window_stride//8),
-                                padding=0
+        self.convs = nn.Sequential(
+            IvanoConv(n_colors    , conv_dim              ),
+            IvanoConv(conv_dim    , conv_dim    , stride=2),
+            IvanoConv(conv_dim    , conv_dim * 2, stride=2),
+            IvanoConv(conv_dim * 2, conv_dim * 4, stride=2),
+            IvanoConv(conv_dim * 4, fc_dim,
+                                    kernel_size=(HEIGHT//8, self.window_width//8),
+                                    stride=(self.window_height//8, self.window_stride//8),
+                                    padding=0
+            )
         )
+
         # TODO: this sort of gets to 27x27 receptive field on a single output of the feature map
         self.fc1 = nn.Linear(fc_dim, fc_dim)
         self.dropout = nn.Dropout(0.2)
@@ -63,12 +67,10 @@ class LineCNNIvan(nn.Module):
         2) there-s gonna be (line_width-window_width)/window_stride columns in the output
         last? convolutional layer will be basically doing the job the code was doing of sliding the CNN
         """
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
+        x = self.convs(x)
         # we're at (B, fc_dim, 1, SeqLen) here
         # -> (B, SeqLen, n_classes)
+
         x = x.squeeze(2).transpose(1, 2)
         x = self.fc1(x)
         x = self.dropout(x)
