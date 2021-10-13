@@ -44,8 +44,11 @@ class LineCNNIvan(nn.Module):
         self.convs = nn.Sequential(
             IvanoConv(n_colors    , conv_dim              ),
             IvanoConv(conv_dim    , conv_dim    , stride=2),
+            IvanoConv(conv_dim    , conv_dim),
             IvanoConv(conv_dim    , conv_dim * 2, stride=2),
+            IvanoConv(conv_dim * 2, conv_dim * 2),
             IvanoConv(conv_dim * 2, conv_dim * 4, stride=2),
+            IvanoConv(conv_dim * 4, conv_dim * 4),
             IvanoConv(conv_dim * 4, fc_dim,
                                     kernel_size=(HEIGHT//8, self.window_width//8),
                                     stride=(self.window_height//8, self.window_stride//8),
